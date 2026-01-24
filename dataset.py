@@ -62,7 +62,7 @@ class CPAISDDataset(Dataset):
             if not study_dir.is_dir():
                 continue
             
-            slice_dirs = sorted(study_dir.iterdir())
+            slice_dirs = sorted([d for d in study_dir.iterdir() if d.is_dir()])
             num_slices = len(slice_dirs)
             
             for idx, slice_dir in enumerate(slice_dirs):
