@@ -203,20 +203,20 @@ class ImprovedSymFormerLoss(nn.Module):
         pred = torch.argmax(output, dim=1)  # (B, H, W)
         
         # Compute boundaries using morphological gradient
+        # Compute boundaries using morphological gradient
         # Boundary = Dilation - Erosion
-        kernel = torch.ones(1, 1, 3, 3, device=output.device)
         
         # For target
         target_float = target.unsqueeze(1).float() if target.ndim == 3 else target.float()
-        target_dilated = F.conv2d(target_float, kernel, padding=1)
-        target_eroded = -F.conv2d(-target_float, kernel, padding=1)
-        target_boundary = (target_dilated - target_eroded) > 0
+        target_dilated = F.max_pool2d(target_float, kernel_size=3, stride=1, padding=1)
+        target_eroded = -F.max_pool2d(-target_float, kernel_size=3, stride=1, padding=1)
+        target_boundary = (target_dilated - target_eroded) > 0.1  # Threshold slightly > 0 to catch edges
         
         # For prediction
         pred_float = pred.unsqueeze(1).float()
-        pred_dilated = F.conv2d(pred_float, kernel, padding=1)
-        pred_eroded = -F.conv2d(-pred_float, kernel, padding=1)
-        pred_boundary = (pred_dilated - pred_eroded) > 0
+        pred_dilated = F.max_pool2d(pred_float, kernel_size=3, stride=1, padding=1)
+        pred_eroded = -F.max_pool2d(-pred_float, kernel_size=3, stride=1, padding=1)
+        pred_boundary = (pred_dilated - pred_eroded) > 0.1
         
         # Boundary loss (Dice on boundaries)
         intersection = (pred_boundary & target_boundary).float().sum()
