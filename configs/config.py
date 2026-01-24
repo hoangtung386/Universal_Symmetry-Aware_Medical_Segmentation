@@ -30,7 +30,7 @@ class Config:
     
     # Batch size
     BATCH_SIZE = 4
-    NUM_EPOCHS = 300
+    NUM_EPOCHS = 150
     LEARNING_RATE = 1e-5
     
     # DataLoader parameters

@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from monai.losses import DiceLoss, FocalLoss
 
 
-class SymFormerLoss(nn.Module):
+class ImprovedSymFormerLoss(nn.Module):
     """
     Enhanced loss with proper multi-scale handling
     """
@@ -152,6 +152,10 @@ class SymFormerLoss(nn.Module):
         if target.ndim == 4:
             target = target.squeeze(1)
         
+        # Average over depth dimension if present (B, 1, D, H, W) -> (B, 1, H, W)
+        if asymmetry_map.ndim == 5:
+            asymmetry_map = asymmetry_map.mean(dim=2)
+
         # Resize asymmetry_map to match target if needed
         if asymmetry_map.shape[-2:] != target.shape[-2:]:
             asymmetry_map = F.interpolate(
@@ -160,10 +164,6 @@ class SymFormerLoss(nn.Module):
                 mode='bilinear',
                 align_corners=False
             )
-        
-        # Average over depth dimension if present (B, 1, D, H, W) -> (B, 1, H, W)
-        if asymmetry_map.ndim == 5:
-            asymmetry_map = asymmetry_map.mean(dim=2)
         
         # Binary masks
         stroke_mask = (target > 0).float().unsqueeze(1)  # (B, 1, H, W)
