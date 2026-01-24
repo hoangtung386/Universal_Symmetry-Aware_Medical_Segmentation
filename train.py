@@ -278,6 +278,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train SymFormer")
     parser.add_argument('--devices', type=str, default='0', 
                         help='Comma-separated GPU IDs (e.g. "0" or "0,1" or "0,1,2")')
+    parser.add_argument('--dataset', type=str, default=None,
+                        help='Dataset name (cpaisd, brats, rsna)')
     return parser.parse_args()
 
 def main():
@@ -292,17 +294,22 @@ def main():
     os.environ["CUDA_VISIBLE_DEVICES"] = args.devices
     
     from configs.config import Config
-    from dataset import create_dataloaders
+    from datasets import create_dataloaders
     
     # Setup directories
     Config.create_directories()
+    
+    # Override dataset from args
+    if args.dataset:
+        Config.DATASET_NAME = args.dataset
+        print(f"Overriding dataset to: {args.dataset}")
     
     # Initialize W&B
     if Config.USE_WANDB:
         wandb.init(
             project=Config.WANDB_PROJECT,
             config=Config.to_dict(),
-            name=f"SymFormerV2_gpu{args.devices}",
+            name=f"SymFormerV2_{Config.DATASET_NAME}_gpu{args.devices}",
             mode=Config.WANDB_MODE
         )
     

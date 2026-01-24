@@ -9,8 +9,8 @@ import torch
 import argparse
 from pathlib import Path
 
-from config import Config
-from dataset import create_dataloaders
+from configs.config import Config
+from datasets import create_dataloaders
 from models.symformer import SymFormer
 
 

@@ -8,6 +8,15 @@ class Config:
     SEED = 42
     
     # Data paths
+    KEY = 'cpaisd' # 'cpaisd', 'brats', 'rsna'
+    DATASET_NAME = KEY
+    
+    DATA_PATHS = {
+        'cpaisd': 'dataset_APIS/dataset',
+        'brats': 'datasets/BraTS',
+        'rsna': 'datasets/RSNA'
+    }
+    
     BASE_PATH = './data' 
     IMAGE_DIR = os.path.join(BASE_PATH, 'images')
     MASK_DIR = os.path.join(BASE_PATH, 'masks')
