@@ -8,12 +8,12 @@ class Config:
     SEED = 42
     
     # Data paths
-    KEY = 'cpaisd' # 'cpaisd', 'brats', 'rsna'
-    DATASET_NAME = KEY
+    KEY = None
+    DATASET_NAME = None
     
     DATA_PATHS = {
         'cpaisd': 'dataset_APIS/dataset',
-        'brats': 'Dataset_BraTs', # Corrected path
+        'brats': 'Dataset_BraTs',
         'rsna': 'datasets/RSNA'
     }
     
@@ -183,6 +183,22 @@ class BraTSConfig(Config):
     
     USE_HU_WINDOW = False # MRI does not use HU
     
+    # Normalization Strategy
+    # Options: 'global' (uses dataset-wide stats) or 'per_volume' (standard)
+    NORMALIZATION_MODE = 'global' 
+    
+    # Global Statistics from brats_normalization_config.json
+    GLOBAL_STATS = {
+        't2f': {'mean': 941.0089, 'std': 351.0287, 'min': 0.0, 'max': 4050.0},
+        't1c': {'mean': 2099.6694, 'std': 760.0310, 'min': 0.0, 'max': 20289.6},
+        't1n': {'mean': 803.4387, 'std': 174.5820, 'min': 0.0, 'max': 4191.0},
+        't2w': {'mean': 673.8523, 'std': 322.7553, 'min': 0.0, 'max': 3841.8}
+    }
+    
+    # Clipping and Scaling
+    CLIP_RANGE = [-3.0, 3.0]
+    TARGET_RANGE = [0.0, 1.0]
+
     # MRI usually needs normalization per volume (handled in loader)
     MEAN = [0.0] # Not used if loader does internal norm
     STD = [1.0]

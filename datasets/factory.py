@@ -5,13 +5,10 @@ from .brats import BraTSDataset
 from .rsna import RSNADataset
 
 def get_dataset_class(name):
-    """
-    Get dataset class by name
-    """
     name = name.lower()
     if name == 'cpaisd' or name == 'apis':
         return CPAISDDataset
-    elif name == 'brats':
+    elif name == 'brats': 
         return BraTSDataset
     elif name == 'rsna':
         return RSNADataset
@@ -58,7 +55,8 @@ def create_dataloaders(config):
         dataset_root=dataset_root,
         split='train',
         T=config.T,
-        use_hu_window=getattr(config, 'USE_HU_WINDOW', True)
+        transform=None,
+        config=config # Pass config object
     )
     
     # Val Dataset
@@ -71,7 +69,8 @@ def create_dataloaders(config):
         dataset_root=dataset_root,
         split=val_split,
         T=config.T,
-        use_hu_window=getattr(config, 'USE_HU_WINDOW', True)
+        transform=None,
+        config=config # Pass config object
     )
     
     train_loader = DataLoader(
