@@ -37,13 +37,13 @@ class Config:
     WINDOW_CENTER = 35
     WINDOW_WIDTH = 85
     
-    # Batch size
-    BATCH_SIZE = 4
+    # Batch size (optimized for RTX 3090 24GB VRAM)
+    BATCH_SIZE = 16  # Increased from 4 for better GPU utilization
     NUM_EPOCHS = 150
     LEARNING_RATE = 1e-5
     
-    # DataLoader parameters
-    NUM_WORKERS = 4
+    # DataLoader parameters (optimized for multi-core CPU)
+    NUM_WORKERS = 8  # Increased from 4 to maximize I/O throughput
     CACHE_RATE = 0
     PIN_MEMORY = True
     PERSISTENT_WORKERS = True
