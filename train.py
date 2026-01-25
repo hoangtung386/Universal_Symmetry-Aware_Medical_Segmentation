@@ -184,13 +184,24 @@ class SymFormerTrainer:
                 
                 total_val_loss += loss.item()
                 
-                # Dice metric
+                # Dice metric - CRITICAL FIX
+                # DiceMetric expects:
+                # - y_pred: (B, C, H, W) with softmax applied OR one-hot
+                # - y: (B, 1, H, W) for class indices OR (B, C, H, W) for one-hot
+                
+                # Apply softmax to get probabilities
+                output_probs = F.softmax(output, dim=1)  # (B, C, H, W)
+                
+                # Convert masks to proper format
                 if masks.ndim == 3:
+                    # (B, H, W) -> (B, 1, H, W)
                     masks_metric = masks.unsqueeze(1)
                 else:
+                    # Already (B, 1, H, W) or (B, C, H, W)
                     masks_metric = masks
                 
-                self.dice_metric(y_pred=output, y=masks_metric)
+                # Update metric with probabilities
+                self.dice_metric(y_pred=output_probs, y=masks_metric)
                 
                 pbar.set_postfix({'val_loss': f'{loss.item():.4f}'})
         
