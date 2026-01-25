@@ -86,11 +86,12 @@ class SymFormerTrainer:
             images = images.to(self.device)
             masks = masks.to(self.device)
             
-            # Convert metadata dict to tensors if present
+            # Move metadata to device if present
             if metadata:
-                 # Ensure metadata is properly formatted for batching if it's a list of dicts
-                 # DataLoader usually returns a dict of lists/tensors if collate is default
-                 pass
+                metadata = {
+                    k: v.to(self.device) if isinstance(v, torch.Tensor) else v 
+                    for k, v in metadata.items()
+                }
             
             self.optimizer.zero_grad()
             
@@ -163,6 +164,13 @@ class SymFormerTrainer:
                     
                 images = images.to(self.device)
                 masks = masks.to(self.device)
+                
+                # Move metadata to device if present
+                if metadata:
+                    metadata = {
+                        k: v.to(self.device) if isinstance(v, torch.Tensor) else v 
+                        for k, v in metadata.items()
+                    }
                 
                 # Forward
                 output, cluster_outputs, asymmetry_map = self.model(

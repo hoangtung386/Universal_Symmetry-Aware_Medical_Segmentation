@@ -1,8 +1,49 @@
 import os
+import torch
 from torch.utils.data import DataLoader
 from .cpaisd import CPAISDDataset
 from .brats import BraTSDataset
 from .rsna import RSNADataset
+
+def custom_collate_fn(batch):
+    """
+    Custom collate function to properly batch metadata dicts
+    
+    Args:
+        batch: List of (images, masks, metadata) tuples
+    
+    Returns:
+        images: (B, 2T+1, H, W)
+        masks: (B, H, W)
+        metadata: Dict[str, Tensor] where each Tensor is (B,)
+    """
+    # Handle both 2-tuple and 3-tuple formats
+    if len(batch[0]) == 3:
+        images, masks, metadatas = zip(*batch)
+        
+        # Stack images and masks
+        images = torch.stack(images, dim=0)
+        masks = torch.stack(masks, dim=0)
+        
+        # Convert list of metadata dicts to dict of tensors
+        metadata_dict = {}
+        if metadatas and metadatas[0]:  # Check if metadata exists
+            keys = metadatas[0].keys()
+            for key in keys:
+                values = [m[key] for m in metadatas]
+                # Handle both numeric and string values
+                if isinstance(values[0], str):
+                    metadata_dict[key] = values  # Keep as list for strings
+                else:
+                    metadata_dict[key] = torch.tensor(values)
+        
+        return images, masks, metadata_dict
+    else:
+        # Fallback for datasets without metadata
+        images, masks = zip(*batch)
+        images = torch.stack(images, dim=0)
+        masks = torch.stack(masks, dim=0)
+        return images, masks
 
 def get_dataset_class(name):
     name = name.lower()
@@ -83,7 +124,8 @@ def create_dataloaders(config):
         batch_size=config.BATCH_SIZE,
         shuffle=True,
         num_workers=config.NUM_WORKERS,
-        pin_memory=config.PIN_MEMORY
+        pin_memory=config.PIN_MEMORY,
+        collate_fn=custom_collate_fn
     )
     
     val_loader = DataLoader(
@@ -91,7 +133,8 @@ def create_dataloaders(config):
         batch_size=config.BATCH_SIZE,
         shuffle=False,
         num_workers=config.NUM_WORKERS,
-        pin_memory=config.PIN_MEMORY
+        pin_memory=config.PIN_MEMORY,
+        collate_fn=custom_collate_fn
     )
     
     return train_loader, val_loader

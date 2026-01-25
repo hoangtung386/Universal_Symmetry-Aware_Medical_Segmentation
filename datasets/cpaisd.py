@@ -21,13 +21,19 @@ class CPAISDDataset(BaseDataset):
     """
     
     def __init__(self, dataset_root, split='train', T=1, 
-                 use_hu_window=True, transform=None):
+                 use_hu_window=True, transform=None, config=None):
         super().__init__(dataset_root, split, T, transform)
+        self.config = config
         self.use_hu_window = use_hu_window
         
         # Brain window parameters (standard for stroke CT)
-        self.window_center = 40  # HU
-        self.window_width = 80   # HU
+        # Use config values if available, otherwise use defaults
+        if config and hasattr(config, 'WINDOW_CENTER'):
+            self.window_center = config.WINDOW_CENTER
+            self.window_width = config.WINDOW_WIDTH
+        else:
+            self.window_center = 40  # HU
+            self.window_width = 80   # HU
         
         # Build sample index
         self.samples = self._build_index()

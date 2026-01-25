@@ -451,7 +451,18 @@ class SymFormer(nn.Module):
         # 0. Encode clinical condition
         condition_vector = None
         if self.use_conditioning and metadata is not None:
-            condition_vector = self.condition_encoder(metadata)
+            # Check if metadata has required keys for conditioning
+            required_keys = ['nihss', 'age', 'sex', 'time', 'dsa']
+            if all(k in metadata for k in required_keys):
+                # Check if values are meaningful (not all zeros - dummy data)
+                has_real_data = any(
+                    metadata[k].sum().item() != 0 if isinstance(metadata[k], torch.Tensor) 
+                    else sum(metadata[k]) != 0 
+                    for k in required_keys
+                )
+                if has_real_data:
+                    condition_vector = self.condition_encoder(metadata)
+                # else: silently skip conditioning for dummy metadata
             
         # 1. Alignment (unchanged)
         B, num_slices, H, W = x.shape
