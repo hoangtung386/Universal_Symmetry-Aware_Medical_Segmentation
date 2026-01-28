@@ -107,7 +107,10 @@ class Evaluator:
             
             for k, v in stats.items():
                 if isinstance(v, dict) and 'mean' in v:
-                    f.write(f"{k:<20} {v['mean']:.4f}     {v['std']:.4f}     {v.get('ci_95', 0):.4f}\n")
+                    mean_val = v['mean']
+                    std_val = v.get('std', 0.0)  # Default to 0 if std not present
+                    ci_val = v.get('ci_95', 0.0)  # Default to 0 if ci_95 not present
+                    f.write(f"{k:<20} {mean_val:.4f}     {std_val:.4f}     {ci_val:.4f}\n")
                     
             f.write("\n")
             f.write("="*60 + "\n")
