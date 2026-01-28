@@ -72,15 +72,27 @@ def visualize_overlay_predictions(model, val_loader, device, class_names,
     samples_shown = 0
     
     with torch.no_grad():
-        for images, masks in val_loader:
+        for batch in val_loader:
             if samples_shown >= num_samples:
                 break
+            
+            # Handle both 2-tuple and 3-tuple formats
+            if len(batch) == 3:
+                images, masks, metadata = batch
+            else:
+                images, masks = batch
+                metadata = None
             
             images = images.to(device)
             masks = masks.to(device)
             
+            # Move metadata to device if present
+            if metadata is not None:
+                metadata = {k: v.to(device) if isinstance(v, torch.Tensor) else v 
+                           for k, v in metadata.items()}
+            
             # Get predictions
-            outputs = model(images)
+            outputs, _, _ = model(images, metadata)  # SymFormer returns (out, clusters, map)
             preds = torch.argmax(outputs, dim=1)
             
             # Convert to numpy
@@ -151,15 +163,27 @@ def plot_per_class_comparison(model, val_loader, device, class_names,
     samples_shown = 0
     
     with torch.no_grad():
-        for images, masks in val_loader:
+        for batch in val_loader:
             if samples_shown >= num_samples:
                 break
+            
+            # Handle both 2-tuple and 3-tuple formats
+            if len(batch) == 3:
+                images, masks, metadata = batch
+            else:
+                images, masks = batch
+                metadata = None
             
             images = images.to(device)
             masks = masks.to(device)
             
+            # Move metadata to device if present
+            if metadata is not None:
+                metadata = {k: v.to(device) if isinstance(v, torch.Tensor) else v 
+                           for k, v in metadata.items()}
+            
             # Get predictions
-            outputs = model(images)
+            outputs, _, _ = model(images, metadata)  # SymFormer returns (out, clusters, map)
             preds = torch.argmax(outputs, dim=1)
             
             # Convert to numpy
