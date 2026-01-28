@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--checkpoint', type=str, required=True, help='Path to model checkpoint')
     parser.add_argument('--output-dir', type=str, default='./output', help='Directory to save results')
     parser.add_argument('--batch-size', type=int, default=1, help='Batch size for evaluation')
-    parser.add_argument('--num-samples', type=int, default=5, help='Number of visualization samples')
+    parser.add_argument('--num-samples', type=int, default=-1, help='Number of visualization samples (-1 for all validation samples)')
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='Device to use')
     
     args = parser.parse_args()
@@ -84,7 +84,8 @@ def main():
         model=model,
         val_loader=val_loader,
         device=device,
-        config=Config
+        config=Config,
+        num_samples=args.num_samples  # Pass num_samples parameter
     )
     
     # Run evaluation

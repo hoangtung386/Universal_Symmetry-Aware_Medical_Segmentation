@@ -9,11 +9,12 @@ from .visualization import visualize_overlay_predictions, plot_metrics_compariso
 from sklearn.metrics import confusion_matrix
 
 class Evaluator:
-    def __init__(self, model, val_loader, device, config):
+    def __init__(self, model, val_loader, device, config, num_samples=-1):
         self.model = model
         self.val_loader = val_loader
         self.device = device
         self.config = config
+        self.num_samples = num_samples  # -1 means all samples
         self.output_dir = 'evaluation_results'
         os.makedirs(self.output_dir, exist_ok=True)
         
@@ -118,6 +119,15 @@ class Evaluator:
         print(f"Report saved to {report_path}")
         
     def visualize_qualitative(self):
+        # Determine actual number of samples to visualize
+        if self.num_samples == -1:
+            # Use all validation samples
+            num_vis_samples = len(self.val_loader.dataset)
+        else:
+            num_vis_samples = self.num_samples
+        
+        print(f"Generating {num_vis_samples} overlay visualizations...")
+        
         class_names = ['Background', 'Stroke']
         visualize_overlay_predictions(
             self.model,
@@ -125,5 +135,5 @@ class Evaluator:
             self.device,
             class_names,
             self.output_dir,
-            num_samples=5
+            num_samples=num_vis_samples
         )
