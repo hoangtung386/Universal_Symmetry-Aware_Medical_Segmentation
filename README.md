@@ -93,6 +93,70 @@ python train.py --dataset brats --devices 0,1
 python train.py --dataset rsna --devices 0,1
 ```
 
+### Model Evaluation
+
+After training, you can evaluate your trained model on the validation set using the evaluation script. The script generates comprehensive metrics, visualizations, and a detailed evaluation report.
+
+#### Basic Usage
+
+```powershell
+# Evaluate with a trained checkpoint
+python evaluate.py --checkpoint path/to/checkpoint.pth
+```
+
+#### Advanced Options
+
+```powershell
+# Specify output directory
+python evaluate.py --checkpoint checkpoints/best_model.pth --output-dir results/eval_run1
+
+# Custom batch size for evaluation
+python evaluate.py --checkpoint checkpoints/best_model.pth --batch-size 4
+
+# Specify device (cuda/cpu)
+python evaluate.py --checkpoint checkpoints/best_model.pth --device cuda
+
+# Control number of visualization samples
+python evaluate.py --checkpoint checkpoints/best_model.pth --num-samples 10
+
+# Full example with all options
+python evaluate.py \
+    --checkpoint checkpoints/symformer_epoch_50.pth \
+    --output-dir evaluation_results \
+    --batch-size 2 \
+    --num-samples 5 \
+    --device cuda
+```
+
+#### Evaluation Outputs
+
+The evaluation script generates the following outputs in the `evaluation_results/` directory:
+
+- **`final_evaluation_report.txt`**: Comprehensive metrics with 95% confidence intervals
+  - Model complexity (parameters, FLOPs, memory)
+  - Performance metrics (Dice, IoU, Precision, Recall)
+  - Per-class statistics
+
+- **Visualizations**:
+  - Overlay predictions on input images
+  - Confusion matrix
+  - Metrics comparison charts
+
+- **Qualitative Results**: Visual comparison of ground truth vs predictions
+
+#### Example Evaluation Workflow
+
+```powershell
+# 1. Activate environment
+conda activate brain_seg_stroke
+
+# 2. Evaluate best checkpoint from training
+python evaluate.py --checkpoint checkpoints/best_model.pth --device cuda
+
+# 3. Check results
+cat evaluation_results/final_evaluation_report.txt
+```
+
 ---
 
 ## 🔧 Recent Updates (2026-01-25)
