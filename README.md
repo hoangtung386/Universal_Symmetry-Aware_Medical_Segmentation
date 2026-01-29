@@ -19,6 +19,9 @@ The heart of OmniSym is **SymFormer**, a state-of-the-art hybrid transformer fea
 1.  **Symmetry-Aware Bottleneck**: A dedicated mechanism that computes the difference between symmetric regions to isolate lesions.
 2.  **Mamba-2 Backbones**: Utilizes Linear State Space Models for efficient, global context modeling without the quadratic cost of Vision Transformers.
 3.  **KAN Decoder**: Kolmogorov-Arnold Networks provide superior boundary precision for irregular lesion shapes.
+4.  **Dynamic Class Configuration**: Automatically adapts model architecture (output channels) based on dataset (e.g., 3 classes for CPAISD, 4 classes for BraTS).
+5.  **Smart Checkpointing**: Saves both `_best` (highest Dice) and `_type` (latest) models with dataset-specific filenames (e.g., `symformer_best_brats.pth`).
+6.  **Advanced Imbalance Defense**: Integrated False Positive Penalty ($L_{fp}$), 10x Class Weight Boosting, and Strict Negative Mining to solving "tiny lesion" segmentation.
 
 ## 📂 Multi-Dataset Support
 
