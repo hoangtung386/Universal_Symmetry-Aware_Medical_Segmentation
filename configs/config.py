@@ -46,7 +46,7 @@ class Config:
     FP_PENALTY_WEIGHT = 0.3         # New: Penalty for predicting stroke in background regions
     
     # Batch size (optimized for RTX 3090 24GB VRAM)
-    BATCH_SIZE = 20  # Increased from 5 (CPAISD) , 20 (BraTS) for better GPU utilization
+    BATCH_SIZE = 5  # Increased from 5 (CPAISD) , 20 (BraTS) for better GPU utilization
     NUM_EPOCHS = 150
     LEARNING_RATE = 1e-4  # Increased from 1e-5 for better convergence
     
