@@ -172,11 +172,8 @@ class CPAISDDataset(BaseDataset):
                 else:
                     image = (image - image.min()) / (image.max() - image.min() + 1e-8)
         
-        # Apply Z-Score Normalization (Global for both DICOM and NPZ)
-        if self.config and hasattr(self.config, 'MEAN') and hasattr(self.config, 'STD'):
-            mean = self.config.MEAN[0] if isinstance(self.config.MEAN, list) else self.config.MEAN
-            std = self.config.STD[0] if isinstance(self.config.STD, list) else self.config.STD
-            image = (image - mean) / (std + 1e-8)
+        # Windowing already normalizes to [0,1] - no additional normalization needed
+        # CT HU windows are carefully calibrated for stroke detection
         
         # Load mask
         mask_npz = np.load(slice_path / "mask.npz")
@@ -206,13 +203,13 @@ class CPAISDDataset(BaseDataset):
             'dsa': 1 if meta.get('dsa', False) else 0
         }
         return parsed_meta
-
+    
     def _safe_float(self, value, default=0.0):
         try:
             return float(value)
         except (ValueError, TypeError):
             return default
-
+    
     def _parse_time(self, time_str):
         if isinstance(time_str, (int, float)): return float(time_str)
         try:
@@ -222,7 +219,7 @@ class CPAISDDataset(BaseDataset):
             return float(time_str)
         except:
             return 0.0
-
+    
     def __getitem__(self, idx):
         sample = self.samples[idx]
         center_idx = sample['slice_idx']

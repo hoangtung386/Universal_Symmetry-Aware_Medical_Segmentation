@@ -1,4 +1,3 @@
-
 from .cpaisd import CPAISDDataset
 from preprocessing.enhancement import EnhancementPipeline
 import numpy as np
@@ -81,11 +80,7 @@ class EnhancedCPAISDDataset(CPAISDDataset):
             image = np.clip(image_hu, lower, upper)
             image = (image - lower) / (upper - lower)
 
-        # 3. Normalization (Z-Score)
-        if self.config and hasattr(self.config, 'MEAN') and hasattr(self.config, 'STD'):
-             mean = self.config.MEAN[0] if isinstance(self.config.MEAN, list) else self.config.MEAN
-             std = self.config.STD[0] if isinstance(self.config.STD, list) else self.config.STD
-             image = (image - mean) / (std + 1e-8)
+        # Enhancement pipeline already produces [0,1] range - no additional normalization needed
 
         # 4. Load Mask
         mask_npz = np.load(slice_path / "mask.npz")

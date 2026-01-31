@@ -47,7 +47,7 @@ class Config:
     FP_PENALTY_WEIGHT = 0.3         # New: Penalty for predicting stroke in background regions
     
     # Batch size (optimized for RTX 3090 24GB VRAM)
-    BATCH_SIZE = 5  # Increased from 5 (CPAISD) , 20 (BraTS) for better GPU utilization
+    BATCH_SIZE = 2  # Reduced to 2 to prevent OOM with 3-channel enhancement
     NUM_EPOCHS = 150
     LEARNING_RATE = 1e-4  # Increased from 1e-5 for better convergence
     
@@ -69,9 +69,9 @@ class Config:
     TRANSFORMER_NUM_LAYERS = 2
     TRANSFORMER_EMBED_DIM = 1024  # Should match bottleneck channels
     
-    # Normalization (Optimized for Stroke Window WC=40, WW=40)
-    MEAN = [0.6234]    # Computed from 500 samples
-    STD = [0.3369]     # Computed from 500 samples
+    # Normalization - Windowing already produces [0,1] range, no additional normalization needed
+    MEAN = None
+    STD = None
     
     WEIGHT_DECAY = 1e-4
     
@@ -168,7 +168,6 @@ class Config:
         print("="*60 + "\n")
 
 
-
 # ============================================================================
 # DATASET-SPECIFIC CONFIGURATIONS
 # ============================================================================
@@ -234,7 +233,7 @@ class CPAISDEnhancedConfig(CPAISDConfig):
     NUM_CHANNELS = 3 # Multi-channel input
     MULTICHANNEL = True
     
-    # Adjust weights if needed for multi-channel
+    # Adjust weights if neededfor multi-channel
     # Maybe slightly higher alignment weight?
     ALIGNMENT_WEIGHT = 0.05
 
@@ -250,4 +249,3 @@ def get_config(dataset_name):
         return RSNAConfig
     else:
         return Config # Default
-
