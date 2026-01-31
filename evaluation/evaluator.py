@@ -9,13 +9,13 @@ from .visualization import visualize_overlay_predictions, plot_metrics_compariso
 from sklearn.metrics import confusion_matrix
 
 class Evaluator:
-    def __init__(self, model, val_loader, device, config, num_samples=-1):
+    def __init__(self, model, val_loader, device, config, num_samples=-1, output_dir='evaluation_results'):
         self.model = model
         self.val_loader = val_loader
         self.device = device
         self.config = config
         self.num_samples = num_samples  # -1 means all samples
-        self.output_dir = 'evaluation_results'
+        self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
         
         self.metric_calc = MetricCalculator(config.NUM_CLASSES, device)
@@ -92,6 +92,10 @@ class Evaluator:
 
                 preds = torch.argmax(outputs, dim=1)
                 
+                # DEBUG: Print unique values to verify model is predicting something
+                if len(all_preds) < 3:
+                    print(f"Debug Batch {len(all_preds)}: Unique Preds: {torch.unique(preds).cpu().tolist()} | Unique GT: {torch.unique(masks).cpu().tolist()}")
+
                 # Compute batch metrics
                 batch_metrics = self.metric_calc.compute_batch(outputs, masks)
                 all_metrics.extend(batch_metrics)
@@ -115,7 +119,16 @@ class Evaluator:
         all_preds = np.concatenate(all_preds)
         all_labels = np.concatenate(all_labels)
         cm = confusion_matrix(all_labels, all_preds, labels=range(self.config.NUM_CLASSES))
-        plot_confusion_matrix(cm, ['Background', 'Region'], self.output_dir)
+        
+        # Generate class names for confusion matrix
+        if self.config.NUM_CLASSES == 3:
+            cm_classes = ['Background', 'Core', 'Penumbra']
+        elif self.config.NUM_CLASSES == 4:
+            cm_classes = ['Background', 'Necrosis', 'Edema', 'Enhancing']
+        else:
+            cm_classes = [f'Class {i}' for i in range(self.config.NUM_CLASSES)]
+            
+        plot_confusion_matrix(cm, cm_classes, self.output_dir)
         
         return summary_stats
         
@@ -162,7 +175,14 @@ class Evaluator:
         
         print(f"Generating {num_vis_samples} overlay visualizations...")
         
-        class_names = ['Background', 'Stroke']
+        # Determine class names based on config
+        if self.config.NUM_CLASSES == 3:
+            class_names = ['Background', 'Core', 'Penumbra']
+        elif self.config.NUM_CLASSES == 4:
+            class_names = ['Background', 'Necrosis', 'Edema', 'Enhancing'] # BraTS
+        else:
+            class_names = [f'Class {i}' for i in range(self.config.NUM_CLASSES)]
+            
         visualize_overlay_predictions(
             self.model,
             self.val_loader,

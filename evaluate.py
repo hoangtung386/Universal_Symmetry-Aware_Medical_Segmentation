@@ -86,7 +86,8 @@ def main():
         val_loader=val_loader,
         device=device,
         config=ConfigClass,
-        num_samples=args.num_samples  # Pass num_samples parameter
+        num_samples=args.num_samples,  # Pass num_samples parameter
+        output_dir=args.output_dir
     )
     
     # Run evaluation
