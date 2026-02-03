@@ -98,11 +98,10 @@ class SymFormerTrainer:
         
         # Metrics
         from monai.metrics import DiceMetric
-        # ✅ FIX: Better reduction method for debugging
+        # Simple mean reduction (returns scalar for .item())
         self.dice_metric = DiceMetric(
             include_background=False, 
-            reduction='mean_batch',
-            get_not_nans=True  # Ignore NaN from empty predictions
+            reduction='mean'  # Reverted from 'mean_batch' to fix aggregate().item() error
         )
         
         self.best_dice = 0.0
