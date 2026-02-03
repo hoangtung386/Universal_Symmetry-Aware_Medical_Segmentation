@@ -191,10 +191,10 @@ class BraTSConfig(Config):
     
     USE_HU_WINDOW = False # MRI does not use HU
     
-    # 🚀 HIGHER LEARNING RATE for better convergence
-    # Previous: 1e-4 (from base Config) was too slow
-    # New: 1e-3 helps model learn to predict all 4 classes
-    LEARNING_RATE = 1e-3
+    # 🚀 HIGHER LEARNING RATE for better convergence on rare classes
+    # Previous: 1e-4 (base) → 1e-3 → 5e-3 (current)
+    # Higher LR helps escape local minima of "predict only common classes"
+    LEARNING_RATE = 5e-3
     
     # Normalization Strategy
     # Options: 'global' (uses dataset-wide stats) or 'per_volume' (standard)
@@ -215,6 +215,17 @@ class BraTSConfig(Config):
     # MRI usually needs normalization per volume (handled in loader)
     MEAN = [0.0] # Not used if loader does internal norm
     STD = [1.0]
+    
+    # ⚠️ CUSTOM CLASS WEIGHTS for EXTREME Class Imbalance
+    # BraTS Class Distribution (typical):
+    #   Class 0 (Background): ~95-98% pixels
+    #   Class 1 (Necrotic Core/NCR): ~0.5-1% pixels  
+    #   Class 2 (Edema): ~1-3% pixels
+    #   Class 3 (Enhancing Tumor/ET): ~0.1-0.5% pixels (EXTREMELY RARE!)
+    # 
+    # Without aggressive weighting, model ignores Class 3 entirely.
+    # Format: [bg_weight, ncr_weight, edema_weight, et_weight]
+    CUSTOM_CLASS_WEIGHTS = [0.1, 10.0, 5.0, 100.0]  # ET gets 100x weight!
     
     # Class weights might differ
     # Core is often smaller than Edema

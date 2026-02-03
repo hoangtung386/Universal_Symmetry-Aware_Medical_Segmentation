@@ -62,19 +62,23 @@ class SymFormerTrainer:
         self.device = device
         self.multi_gpu = multi_gpu
         
-        # Compute class weights (from existing utils)
-        # Note: If running on DDP, this should be done only on main process or cached
-        # For DataParallel, it is fine.
-        from utils.data_utils import compute_class_weights
-        print("Computing/Loading class weights...")
-        class_weights = compute_class_weights(
-            train_loader.dataset,
-            num_classes=config.NUM_CLASSES,
-            num_samples=500
-        ).to(device)
+        
+        # Compute or use custom class weights
+        # Priority: Custom weights from config > Computed from dataset
+        if hasattr(config, 'CUSTOM_CLASS_WEIGHTS') and config.CUSTOM_CLASS_WEIGHTS:
+            print(f"✓ Using CUSTOM class weights from config: {config.CUSTOM_CLASS_WEIGHTS}")
+            class_weights = torch.tensor(config.CUSTOM_CLASS_WEIGHTS, dtype=torch.float32).to(device)
+        else:
+            from utils.data_utils import compute_class_weights
+            print("Computing class weights from dataset (this may take a moment)...")
+            class_weights = compute_class_weights(
+                train_loader.dataset,
+                num_classes=config.NUM_CLASSES,
+                num_samples=2000  # Increased from 500 to 2000 for better rare class estimation
+            ).to(device)
         
         # ✅ DEBUG: Print class weights to detect imbalance
-        print(f"[CRITICAL] Class weights: {class_weights.cpu().tolist()}")
+        print(f"[CRITICAL] Final class weights: {class_weights.cpu().tolist()}")
         print(f"[CRITICAL] NUM_CLASSES: {config.NUM_CLASSES}")
         
         # SymFormer Loss
