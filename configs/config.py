@@ -217,18 +217,41 @@ class BraTSConfig(Config):
     MEAN = [0.0] # Not used if loader does internal norm
     STD = [1.0]
     
-    # ⚠️ CUSTOM CLASS WEIGHTS for EXTREME Class Imbalance
-    # BraTS Class Distribution (observed from training):
-    #   Class 0 (Background): ~98.5% pixels (extremely dominant!)
-    #   Class 1 (Necrotic Core/NCR): ~0.5-1% pixels  
-    #   Class 2 (Edema): ~1-2% pixels
-    #   Class 3 (Enhancing Tumor/ET): ~0.05-0.2% pixels (ULTRA RARE!)
+    # ⚠️ REVISED: Balanced Class Weights (Fix for Class Weight Overfitting)
     # 
-    # Model was only predicting class 0 with 100x weight → Need 500x!
+    # USER DISCOVERY: 500x weight for ET caused Classes 1 & 2 suppression!
+    #   - With 1x weights: Model predicted all [0, 1, 2, 3] after epoch 1 ✅
+    #   - With 100x for ET: Model only predicted [0, 3], then collapsed to [0] ❌
+    #   - With 500x for ET: (Predicted to be even worse)
+    # 
+    # ROOT CAUSE: Extreme weights cause:
+    #   1. Class 3 dominates loss (86% with 500x weight)
+    #   2. Classes 1 & 2 get suppressed (only 12% combined)
+    #   3. Model overfits to Class 3 → False positives → Collapse to Class 0
+    # 
+    # SOLUTION: Balanced weights where each class contributes ~25% to total loss
+    # 
+    # BraTS Class Distribution (empirical):
+    #   Class 0 (Background): ~95.7% pixels
+    #   Class 1 (Necrotic Core/NCR): ~0.4% pixels  
+    #   Class 2 (Edema): ~3.5% pixels
+    #   Class 3 (Enhancing Tumor/ET): ~0.6% pixels
+    # 
     # Format: [bg_weight, ncr_weight, edema_weight, et_weight]
-    CUSTOM_CLASS_WEIGHTS = [0.05, 20.0, 10.0, 500.0]  # ← ET gets 500x weight!
-    #                       ^^^^  ^^^^  ^^^^  ^^^^^^
-    #                       Lower BG to make tumor classes more important
+    
+    # ✅ OPTION 1: Balanced Weights (Recommended - try this first!)
+    CUSTOM_CLASS_WEIGHTS = [0.3, 50.0, 7.0, 40.0]
+    #                       ^^^  ^^^^  ^^^  ^^^^
+    #                       Each class contributes ~20-27% to total loss
+    #                       Loss balance: [26.6%, 20.2%, 22.6%, 22.6%]
+    
+    # ⚠️ OPTION 2: Conservative Weights (use if Option 1 still unstable)
+    # CUSTOM_CLASS_WEIGHTS = [1.0, 10.0, 5.0, 15.0]
+    #   Closer to user's working 1x config, with small ET boost
+    
+    # ❌ OPTION 3: Original Working Config (user's discovery)
+    # CUSTOM_CLASS_WEIGHTS = [1.0, 1.0, 1.0, 1.0]
+    #   Worked well but may lose Class 3 in later epochs
     
     # 🔧 FP Penalty disabled for BraTS (causes negative loss values)
     # FP Penalty was designed for stroke CT, not suitable for multi-class tumor
