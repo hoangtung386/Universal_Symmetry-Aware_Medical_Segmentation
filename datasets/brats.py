@@ -29,7 +29,7 @@ class BraTSDataset(BaseDataset):
     """
     
     def __init__(self, dataset_root, split='train', T=1, transform=None,
-                 modality='t2f', label_mode='native', use_cache=True, config=None):
+                 modality='t2f', label_mode='native', use_cache=True, config=None, val_ratio=0.2):
         super().__init__(dataset_root, split, T, transform)
         
         self.dataset_root = Path(dataset_root)
@@ -39,17 +39,23 @@ class BraTSDataset(BaseDataset):
             
         self.use_cache = use_cache
         
-        # Determine data directory
-        if split == 'train':
-            if (self.dataset_root / 'ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData').exists():
-                self.data_dir = self.dataset_root / 'ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData'
-            else:
-                self.data_dir = self.dataset_root
+        # 🚨 CRITICAL FIX: Always use TrainingData (has segmentation labels!)
+        # ValidationData folder is for challenge submission only - NO LABELS!
+        # Split TrainingData internally into train/val sets
+        if (self.dataset_root / 'ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData').exists():
+            self.data_dir = self.dataset_root / 'ASNR-MICCAI-BraTS2023-GLI-Challenge-TrainingData'
         else:
-            if (self.dataset_root / 'ASNR-MICCAI-BraTS2023-GLI-Challenge-ValidationData').exists():
-                self.data_dir = self.dataset_root / 'ASNR-MICCAI-BraTS2023-GLI-Challenge-ValidationData'
-            else:
-                self.data_dir = self.dataset_root
+            # Fallback if data is already in root
+            self.data_dir = self.dataset_root
+        
+        if not self.data_dir.exists():
+            raise FileNotFoundError(
+                f"BraTS TrainingData directory not found: {self.data_dir}\n"
+                f"Please check dataset path."
+            )
+        
+        # Split TrainingData into train/val sets (reproducible)
+        self._split_train_val(val_ratio)
         
         # Cache volumes
         self.volume_cache = {} if use_cache else None
@@ -116,6 +122,45 @@ class BraTSDataset(BaseDataset):
         print(f"  ⚠️  No normalization stats found, using per-volume Z-score")
         return None
     
+    def _split_train_val(self, val_ratio):
+        """
+        Split TrainingData into train/val sets with reproducible random seed
+        
+        Args:
+            val_ratio: Ratio for validation set (e.g., 0.2 = 20%)
+        """
+        from sklearn.model_selection import train_test_split
+        
+        # Get all study folders in TrainingData
+        all_studies = sorted([d.name for d in self.data_dir.iterdir() if d.is_dir()])
+        
+        if len(all_studies) == 0:
+            raise ValueError(f"No study folders found in {self.data_dir}")
+        
+        print(f"  Total studies in TrainingData: {len(all_studies)}")
+        
+        # Split with fixed seed for reproducibility
+        train_studies, val_studies = train_test_split(
+            all_studies,
+            test_size=val_ratio,
+            random_state=42,
+            shuffle=True
+        )
+        
+        # Store study names for filtering in _build_index
+        if self.split == 'train':
+            self.allowed_studies = set(train_studies)
+            print(f"  Using TRAIN split: {len(train_studies)} studies (~{100*(1-val_ratio):.0f}%)")
+        else:  # 'val'
+            self.allowed_studies = set(val_studies)
+            print(f"  Using VAL split: {len(val_studies)} studies (~{100*val_ratio:.0f}%)")
+        
+        # Verify no overlap
+        train_set = set(train_studies)
+        val_set = set(val_studies)
+        assert len(train_set & val_set) == 0, "Train/Val overlap detected!"
+        print(f"  ✓ No overlap between train and val sets")
+    
     def _build_index(self):
         """Xây dựng index các slices có nội dung với filtering"""
         import nibabel as nib
@@ -127,7 +172,8 @@ class BraTSDataset(BaseDataset):
             'total': 0,
             'empty': 0,
             'non_empty': 0,
-            'dropped_empty': 0
+            'dropped_empty': 0,
+            'skipped_wrong_split': 0  # NEW: Track split filtering
         }
         
         if not self.data_dir.exists():
@@ -139,6 +185,11 @@ class BraTSDataset(BaseDataset):
         
         for study_path in studies:
             study_id = study_path.name
+            
+            # ✅ CRITICAL FIX: Skip if not in current split's allowed studies
+            if study_id not in self.allowed_studies:
+                filter_stats['skipped_wrong_split'] += 1
+                continue
             
             # Đường dẫn files
             img_path = study_path / f"{study_id}-{self.modality}.nii.gz"
