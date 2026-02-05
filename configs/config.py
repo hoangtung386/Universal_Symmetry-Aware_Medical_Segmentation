@@ -193,7 +193,7 @@ class BraTSConfig(Config):
     
     # 🔧 CRITICAL FIX: Reduce LR for training stability
     # Issue: 5e-3 caused model collapse → only predicting class 0
-    # Previous progression: 1e-4 → 1e-3 → 5e-3 (too high!) → 1e-4 (stable)
+    # Previous progression: 1e-4 → 1e-3 → 5e-3 (too high!) → 5e-4 (stable)
     # Lower LR prevents collapse to "all background" prediction
     LEARNING_RATE = 5e-4  # Reduced 10x from 5e-3
     
@@ -233,6 +233,14 @@ class BraTSConfig(Config):
     # 🔧 FP Penalty disabled for BraTS (causes negative loss values)
     # FP Penalty was designed for stroke CT, not suitable for multi-class tumor
     FP_PENALTY_WEIGHT = 0.0  # Disabled (was 0.3 in base Config)
+    
+    # 🚨 CRITICAL FIX: Disable empty slice filtering for BraTS
+    # Issue: With SKIP_EMPTY_SLICES=True and NEGATIVE_SAMPLE_RATIO=0.05,
+    #        batches can contain 100% background slices → Model can't learn tumor classes
+    # Root cause: Random sampling can group all 5% remaining empty slices into one batch
+    # Solution: Disable filtering - BraTS is 3D volumetric, context from all slices is valuable
+    # Note: Class weights (500x for ET) already handle extreme imbalance
+    SKIP_EMPTY_SLICES = False  # Override base config (was True)
     
     # Early Stopping with high patience for BraTS (rare class needs time)
     EARLY_STOPPING_PATIENCE = 50  # Was 20 in base config
