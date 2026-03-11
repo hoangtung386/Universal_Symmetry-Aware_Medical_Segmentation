@@ -1,0 +1,3 @@
+DATASET_NAME: "rsna"
+NUM_CLASSES: 2
+USE_HU_WINDOW: true

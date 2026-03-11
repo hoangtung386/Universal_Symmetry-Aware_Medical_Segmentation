@@ -1,308 +1,171 @@
-"""
-Optimized to prevent NaN and OOM issues
-"""
 import os
+import yaml
+from dataclasses import dataclass, field, asdict
+from typing import Dict, List, Optional, Any, Union, Tuple
 
-class Config:
+@dataclass
+class TrainingConfig:
     # Basic settings
-    SEED = 42
+    SEED: int
     
     # Data paths
-    KEY = None
-    DATASET_NAME = None
-    
-    DATA_PATHS = {
-        'cpaisd': 'dataset_APIS/dataset',
-        'cpaisd_enhanced': 'dataset_APIS/dataset',
-        'brats': 'Dataset_BraTs',
-        'rsna': 'datasets/RSNA'
-    }
-    
-    BASE_PATH = './data' 
-    IMAGE_DIR = os.path.join(BASE_PATH, 'images')
-    MASK_DIR = os.path.join(BASE_PATH, 'masks')
-    OUTPUT_DIR = './outputs'
-    CHECKPOINT_DIR = './checkpoints'
+    DATA_PATHS: Dict[str, str]
+    BASE_PATH: str
+    IMAGE_DIR: str
+    MASK_DIR: str
+    OUTPUT_DIR: str
+    CHECKPOINT_DIR: str
+    DATASET_NAME: str = ""
     
     # Data split
-    TRAIN_SPLIT = 0.8
+    TRAIN_SPLIT: float = 0.8
     
     # Model parameters
-    NUM_CHANNELS = 1
-    NUM_CLASSES = 3  # 0=background, 1=core, 2=penumbra
-    INIT_FEATURES = 32
-    IMAGE_SIZE = (512, 512)
+    NUM_CHANNELS: int = 1
+    NUM_CLASSES: int = 3
+    INIT_FEATURES: int = 32
+    IMAGE_SIZE: Tuple[int, int] = (512, 512)
+    MULTICHANNEL: bool = False
     
-    # HU Windowing (Brain Stroke Optimized)
-    USE_HU_WINDOW = True
-    # Stroke Window: High contrast for intraparenchymal differentiation
-    WINDOW_CENTER = 40 
-    WINDOW_WIDTH = 40
+    # HU Windowing
+    USE_HU_WINDOW: bool = True
+    WINDOW_CENTER: int = 40
+    WINDOW_WIDTH: int = 40
     
-    # Dataset filtering for class balance
-    SKIP_EMPTY_SLICES = True        # Filter out slices with no stroke annotation
-    NEGATIVE_SAMPLE_RATIO = 0.05    # Reducing from 0.2 to 0.05 to drastically reduce background dominance
+    # Dataset filtering
+    SKIP_EMPTY_SLICES: bool = True
+    NEGATIVE_SAMPLE_RATIO: float = 0.05
     
     # Loss Weights
-    FP_PENALTY_WEIGHT = 0.3         # New: Penalty for predicting stroke in background regions
+    FP_PENALTY_WEIGHT: float = 0.3
     
-    # Batch size (optimized for RTX 3090 24GB VRAM)
-    BATCH_SIZE = 20  # Reduced to 2 to prevent OOM with 3-channel enhancement
-    NUM_EPOCHS = 150
-    LEARNING_RATE = 1e-4  # Increased from 1e-5 for better convergence
+    # Training
+    BATCH_SIZE: int = 20
+    NUM_EPOCHS: int = 150
+    LEARNING_RATE: float = 1e-4
     
-    # DataLoader parameters (optimized for multi-core CPU)
-    NUM_WORKERS = 8  # Increased from 4 to maximize I/O throughput
-    CACHE_RATE = 0
-    PIN_MEMORY = True
-    PERSISTENT_WORKERS = True
+    # DataLoader parameters
+    NUM_WORKERS: int = 8
+    CACHE_RATE: float = 0.0
+    PIN_MEMORY: bool = True
+    PERSISTENT_WORKERS: bool = True
     
     # Model architecture
-    T = 1                       # Number of adjacent slices
-    NUM_PARTITIONS_H = 4
-    NUM_PARTITIONS_W = 4
-    GLOBAL_IMPACT = 0.3
-    LOCAL_IMPACT = 0.7
+    T: int = 1
+    NUM_PARTITIONS_H: int = 4
+    NUM_PARTITIONS_W: int = 4
+    GLOBAL_IMPACT: float = 0.3
+    LOCAL_IMPACT: float = 0.7
     
     # Transformer Parameters
-    TRANSFORMER_NUM_HEADS = 4
-    TRANSFORMER_NUM_LAYERS = 2
-    TRANSFORMER_EMBED_DIM = 1024  # Should match bottleneck channels
+    TRANSFORMER_NUM_HEADS: int = 4
+    TRANSFORMER_NUM_LAYERS: int = 2
+    TRANSFORMER_EMBED_DIM: int = 1024
     
-    # Normalization - Windowing already produces [0,1] range, no additional normalization needed
-    MEAN = None
-    STD = None
+    # Normalization
+    MEAN: Optional[List[float]] = None
+    STD: Optional[List[float]] = None
     
-    WEIGHT_DECAY = 1e-4
+    WEIGHT_DECAY: float = 1e-4
     
     # Training stability
-    GRAD_CLIP_NORM = 1.0
-    USE_AMP = False
-    DEBUG_MODE = False
-    DETECT_ANOMALY = False
+    GRAD_CLIP_NORM: float = 1.0
+    USE_AMP: bool = False
+    DEBUG_MODE: bool = False
+    DETECT_ANOMALY: bool = False
     
-    # ⭐ SOTA Components
-    USE_MAMBA = True        # Use Mamba-2 bottleneck
-    USE_KAN = True          # Use Efficient-KAN decoder heads
-    USE_CONDITIONING = True # Use Clinical Conditioning
+    # SOTA Components
+    USE_MAMBA: bool = True
+    USE_KAN: bool = True
+    USE_CONDITIONING: bool = True
     
     # Component-specific settings
-    MAMBA_DEPTH = 4
-    KAN_DEGREE = 3
+    MAMBA_DEPTH: int = 4
+    KAN_DEGREE: int = 3
     
     # SymFormer specific
-    KMAX_NUM_HEADS = 8
-    KMAX_NUM_LAYERS = 2
-    SYMMETRY_WEIGHT = 0.05
-    CLUSTER_WEIGHT = 0.1
+    KMAX_NUM_HEADS: int = 8
+    KMAX_NUM_LAYERS: int = 2
+    SYMMETRY_WEIGHT: float = 0.05
+    CLUSTER_WEIGHT: float = 0.1
     
     # Loss weights
-    DICE_WEIGHT = 0.7
-    CE_WEIGHT = 0.3
-    FOCAL_WEIGHT = 1.0
-    ALIGNMENT_WEIGHT = 0.05
-    PERCEPTUAL_WEIGHT = 0.1   
+    DICE_WEIGHT: float = 0.7
+    CE_WEIGHT: float = 0.3
+    FOCAL_WEIGHT: float = 1.0
+    ALIGNMENT_WEIGHT: float = 0.05
+    PERCEPTUAL_WEIGHT: float = 0.1
     
     # W&B settings
-    USE_WANDB = True
-    WANDB_PROJECT = "OmniSym-dataset-"
-    WANDB_ENTITY = None
-    WANDB_MODE = "online"
+    USE_WANDB: bool = True
+    WANDB_PROJECT: str = "OmniSym-dataset-"
+    WANDB_ENTITY: Optional[str] = None
+    WANDB_MODE: str = "online"
     
     # Scheduler parameters
-    SCHEDULER_T0 = 10
-    SCHEDULER_T_MULT = 2
-    SCHEDULER_ETA_MIN = 1e-6
+    SCHEDULER_T0: int = 10
+    SCHEDULER_T_MULT: int = 2
+    SCHEDULER_ETA_MIN: float = 1e-6
     
     # Early stopping
-    EARLY_STOPPING_PATIENCE = 30
-    
-    @classmethod
-    def to_dict(cls):
-        """Convert config to dictionary"""
-        return {
-            'seed': cls.SEED,
-            'train_split': cls.TRAIN_SPLIT,
-            'batch_size': cls.BATCH_SIZE,
-            'num_epochs': cls.NUM_EPOCHS,
-            'learning_rate': cls.LEARNING_RATE,
-            'image_size': cls.IMAGE_SIZE,
-            'init_features': cls.INIT_FEATURES,
-            'num_channels': cls.NUM_CHANNELS,
-            'num_classes': cls.NUM_CLASSES,
-            'T': cls.T,
-            'global_impact': cls.GLOBAL_IMPACT,
-            'local_impact': cls.LOCAL_IMPACT,
-            'dice_weight': cls.DICE_WEIGHT,
-            'ce_weight': cls.CE_WEIGHT,
-            'alignment_weight': cls.ALIGNMENT_WEIGHT,
-            'grad_clip_norm': cls.GRAD_CLIP_NORM,
-            'use_amp': cls.USE_AMP,
-            'use_mamba': cls.USE_MAMBA,
-            'use_kan': cls.USE_KAN,
-            'use_conditioning': cls.USE_CONDITIONING,
-        }
-    
-    @classmethod
-    def create_directories(cls):
+    EARLY_STOPPING_PATIENCE: int = 30
+
+    # BraTS Specific
+    NORMALIZATION_MODE: Optional[str] = None
+    GLOBAL_STATS: Optional[Dict[str, Dict[str, float]]] = None
+    CLIP_RANGE: Optional[List[float]] = None
+    TARGET_RANGE: Optional[List[float]] = None
+    CUSTOM_CLASS_WEIGHTS: Optional[List[float]] = None
+
+    def create_directories(self):
         """Create necessary directories"""
-        os.makedirs(cls.OUTPUT_DIR, exist_ok=True)
-        os.makedirs(cls.CHECKPOINT_DIR, exist_ok=True)
-        print(f"Directories created: {cls.OUTPUT_DIR}, {cls.CHECKPOINT_DIR}")
+        os.makedirs(self.OUTPUT_DIR, exist_ok=True)
+        os.makedirs(self.CHECKPOINT_DIR, exist_ok=True)
+        print(f"Directories created: {self.OUTPUT_DIR}, {self.CHECKPOINT_DIR}")
+
+    def to_dict(self):
+        return asdict(self)
     
-    @classmethod
-    def print_config(cls):
+    def print_config(self):
         """Print current configuration"""
         print("\n" + "="*60)
         print("CURRENT CONFIGURATION")
         print("="*60)
-        print(f"Batch Size:        {cls.BATCH_SIZE}")
-        print(f"Learning Rate:     {cls.LEARNING_RATE}")
-        print(f"Epochs:            {cls.NUM_EPOCHS}")
-        print(f"Image Size:        {cls.IMAGE_SIZE}")
-        print(f"Gradient Clip:     {cls.GRAD_CLIP_NORM}")
-        print(f"Alignment Weight:  {cls.ALIGNMENT_WEIGHT}")
-        print(f"Use AMP:           {cls.USE_AMP}")
-        print(f"Debug Mode:        {cls.DEBUG_MODE}")
-        print(f"SOTA Components:   Mamba={cls.USE_MAMBA}, KAN={cls.USE_KAN}, Cond={cls.USE_CONDITIONING}")
+        print(f"Dataset Name:      {self.DATASET_NAME}")
+        print(f"Batch Size:        {self.BATCH_SIZE}")
+        print(f"Learning Rate:     {self.LEARNING_RATE}")
+        print(f"Epochs:            {self.NUM_EPOCHS}")
+        print(f"Image Size:        {self.IMAGE_SIZE}")
+        print(f"Gradient Clip:     {self.GRAD_CLIP_NORM}")
+        print(f"Alignment Weight:  {self.ALIGNMENT_WEIGHT}")
+        print(f"Use AMP:           {self.USE_AMP}")
+        print(f"Debug Mode:        {self.DEBUG_MODE}")
+        print(f"SOTA Components:   Mamba={self.USE_MAMBA}, KAN={self.USE_KAN}, Cond={self.USE_CONDITIONING}")
         print("="*60 + "\n")
 
 
-# ============================================================================
-# DATASET-SPECIFIC CONFIGURATIONS
-# ============================================================================
+def load_config(dataset_name: str) -> TrainingConfig:
+    """Load and merge base configuration with dataset-specific overrides"""
+    config_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Load base config
+    base_path = os.path.join(config_dir, "base.yaml")
+    with open(base_path, "r") as f:
+        config_dict = yaml.safe_load(f)
 
-class CPAISDConfig(Config):
-    """Configuration for Stroke (CT)"""
-    DATASET_NAME = 'cpaisd'
-    NUM_CLASSES = 3      # 0=bg, 1=core, 2=penumbra
-    IMAGE_SIZE = (512, 512) # CT size
-    USE_HU_WINDOW = True # CT specific
-    
-    # Weights optimized for Stroke
-    DICE_WEIGHT = 0.7
-    CE_WEIGHT = 0.3
-    
-class BraTSConfig(Config):
-    """Configuration for Brain Tumor (MRI)"""
-    DATASET_NAME = 'brats'
-    NUM_CLASSES = 4      
-    IMAGE_SIZE = (240, 240) # BraTS Native Resolution
-    
-    USE_HU_WINDOW = False # MRI does not use HU
-    
-    # 🔧 CRITICAL FIX: Reduce LR for training stability
-    # Issue: 5e-3 caused model collapse → only predicting class 0
-    # Previous progression: 1e-4 → 1e-3 → 5e-3 (too high!) → 5e-4 (stable)
-    # Lower LR prevents collapse to "all background" prediction
-    LEARNING_RATE = 5e-4  # Reduced 10x from 5e-3
-    
-    # Normalization Strategy
-    # Options: 'global' (uses dataset-wide stats) or 'per_volume' (standard)
-    NORMALIZATION_MODE = 'global' 
-    
-    # Global Statistics from brats_normalization_config.json
-    GLOBAL_STATS = {
-        't2f': {'mean': 941.0089, 'std': 351.0287, 'min': 0.0, 'max': 4050.0},
-        't1c': {'mean': 2099.6694, 'std': 760.0310, 'min': 0.0, 'max': 20289.6},
-        't1n': {'mean': 803.4387, 'std': 174.5820, 'min': 0.0, 'max': 4191.0},
-        't2w': {'mean': 673.8523, 'std': 322.7553, 'min': 0.0, 'max': 3841.8}
-    }
-    
-    # Clipping and Scaling
-    CLIP_RANGE = [-3.0, 3.0]
-    TARGET_RANGE = [0.0, 1.0]
-
-    # MRI usually needs normalization per volume (handled in loader)
-    MEAN = [0.0] # Not used if loader does internal norm
-    STD = [1.0]
-    
-    # ⚠️ REVISED: Balanced Class Weights (Fix for Class Weight Overfitting)
-    # 
-    # USER DISCOVERY: 500x weight for ET caused Classes 1 & 2 suppression!
-    #   - With 1x weights: Model predicted all [0, 1, 2, 3] after epoch 1 ✅
-    #   - With 100x for ET: Model only predicted [0, 3], then collapsed to [0] ❌
-    #   - With 500x for ET: (Predicted to be even worse)
-    # 
-    # ROOT CAUSE: Extreme weights cause:
-    #   1. Class 3 dominates loss (86% with 500x weight)
-    #   2. Classes 1 & 2 get suppressed (only 12% combined)
-    #   3. Model overfits to Class 3 → False positives → Collapse to Class 0
-    # 
-    # SOLUTION: Balanced weights where each class contributes ~25% to total loss
-    # 
-    # BraTS Class Distribution (empirical):
-    #   Class 0 (Background): ~95.7% pixels
-    #   Class 1 (Necrotic Core/NCR): ~0.4% pixels  
-    #   Class 2 (Edema): ~3.5% pixels
-    #   Class 3 (Enhancing Tumor/ET): ~0.6% pixels
-    # 
-    # Format: [bg_weight, ncr_weight, edema_weight, et_weight]
-    
-    # ✅ OPTION 1: Balanced Weights (Recommended - try this first!)
-    CUSTOM_CLASS_WEIGHTS = [0.3, 50.0, 7.0, 40.0]
-    #                       ^^^  ^^^^  ^^^  ^^^^
-    #                       Each class contributes ~20-27% to total loss
-    #                       Loss balance: [26.6%, 20.2%, 22.6%, 22.6%]
-    
-    # ⚠️ OPTION 2: Conservative Weights (use if Option 1 still unstable)
-    # CUSTOM_CLASS_WEIGHTS = [1.0, 10.0, 5.0, 15.0]
-    #   Closer to user's working 1x config, with small ET boost
-    
-    # ❌ OPTION 3: Original Working Config (user's discovery)
-    # CUSTOM_CLASS_WEIGHTS = [1.0, 1.0, 1.0, 1.0]
-    #   Worked well but may lose Class 3 in later epochs
-    
-    # 🔧 FP Penalty disabled for BraTS (causes negative loss values)
-    # FP Penalty was designed for stroke CT, not suitable for multi-class tumor
-    FP_PENALTY_WEIGHT = 0.0  # Disabled (was 0.3 in base Config)
-    
-    # 🚨 CRITICAL FIX: Disable empty slice filtering for BraTS
-    # Issue: With SKIP_EMPTY_SLICES=True and NEGATIVE_SAMPLE_RATIO=0.05,
-    #        batches can contain 100% background slices → Model can't learn tumor classes
-    # Root cause: Random sampling can group all 5% remaining empty slices into one batch
-    # Solution: Disable filtering - BraTS is 3D volumetric, context from all slices is valuable
-    # Note: Class weights (500x for ET) already handle extreme imbalance
-    SKIP_EMPTY_SLICES = False  # Override base config (was True)
-    
-    # Early Stopping with high patience for BraTS (rare class needs time)
-    EARLY_STOPPING_PATIENCE = 50  # Was 20 in base config
-    
-    # Class weights might differ
-    # Core is often smaller than Edema
-    DICE_WEIGHT = 0.5
-    FOCAL_WEIGHT = 0.5 
-
-class RSNAConfig(Config):
-    """Configuration for Abdominal Trauma (CT)"""
-    DATASET_NAME = 'rsna'
-    NUM_CLASSES = 2 # Placeholder: 0=bg, 1=injury
-    USE_HU_WINDOW = True # CT
-    
-class CPAISDEnhancedConfig(CPAISDConfig):
-    """
-    Configuration for Enhanced Stroke Segmentation (3-Channel Strategy)
-    Channel 1: Original Stroke Window (Anchor)
-    Channel 2: Context Window
-    Channel 3: Enhanced (Detail Boost)
-    """
-    DATASET_NAME = 'cpaisd_enhanced'
-    NUM_CHANNELS = 3 # Multi-channel input
-    MULTICHANNEL = True
-    
-    # Adjust weights if neededfor multi-channel
-    # Maybe slightly higher alignment weight?
-    ALIGNMENT_WEIGHT = 0.05
-
-def get_config(dataset_name):
-    """Factory to get config by name"""
-    if dataset_name == 'cpaisd':
-        return CPAISDConfig
-    elif dataset_name == 'cpaisd_enhanced':
-        return CPAISDEnhancedConfig
-    elif dataset_name == 'brats':
-        return BraTSConfig
-    elif dataset_name == 'rsna':
-        return RSNAConfig
+    # Load dataset-specific config
+    dataset_path = os.path.join(config_dir, "datasets", f"{dataset_name}.yaml")
+    if os.path.exists(dataset_path):
+        with open(dataset_path, "r") as f:
+            dataset_config = yaml.safe_load(f)
+            if dataset_config:
+                config_dict.update(dataset_config)
     else:
-        return Config # Default
+        print(f"Warning: Dataset config {dataset_path} not found. Using base config.")
+
+    # Convert lists to tuples where necessary (like IMAGE_SIZE)
+    if 'IMAGE_SIZE' in config_dict and isinstance(config_dict['IMAGE_SIZE'], list):
+        config_dict['IMAGE_SIZE'] = tuple(config_dict['IMAGE_SIZE'])
+
+    return TrainingConfig(**config_dict)
+
