@@ -37,7 +37,7 @@ class TrainingConfig:
     NEGATIVE_SAMPLE_RATIO: float = 0.05
     
     # Loss Weights
-    FP_PENALTY_WEIGHT: float = 0.3
+    FP_PENALTY_WEIGHT: float = 0.0
     
     # Training
     BATCH_SIZE: int = 20
