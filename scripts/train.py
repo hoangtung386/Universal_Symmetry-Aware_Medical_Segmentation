@@ -12,11 +12,7 @@ def early_device_setup():
 
     if args.devices:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.devices
-        print(f"🎯 [Early Setup] Setting CUDA_VISIBLE_DEVICES={args.devices}")
-    else:
-        if args.devices == "":
-             os.environ["CUDA_VISIBLE_DEVICES"] = ""
-             print("🎯 [Early Setup] Using CPU (no GPUs specified)")
+        print(f"[Early Setup] Setting CUDA_VISIBLE_DEVICES={args.devices}")
 
 early_device_setup()
 
@@ -85,7 +81,6 @@ def main():
             project=wandb_project,
             config=config.to_dict(),
             name=f"SymFormer_{config.DATASET_NAME}_{'cpu' if not args.devices else 'gpu'+args.devices.replace(',','_')}",
-            mode="disabled"
         )
 
     if torch.cuda.is_available():
