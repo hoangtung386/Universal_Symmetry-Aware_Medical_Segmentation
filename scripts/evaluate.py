@@ -8,7 +8,6 @@ from datasets.factory import get_dataset_class
 from torch.utils.data import DataLoader
 from models.conditioned_symformer import ConditionedSymFormer
 from configs.config import load_config
-from utils.transforms import apply_aligned_mask
 from monai.metrics import DiceMetric
 from monai.networks.utils import one_hot
 
