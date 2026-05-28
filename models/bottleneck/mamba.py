@@ -12,11 +12,14 @@ class MambaBottleneckWrapper(BaseBottleneck):
 
         try:
             from models.layers.mamba import MambaBottleneck
-            self.mamba = MambaBottleneck(in_channels=in_channels, depth=mamba_depth)
+            self.mamba = MambaBottleneck(channels=in_channels, depth=mamba_depth)
         except ImportError:
             print("Warning: Mamba layer not found. Falling back to SymmetryAwareBottleneck.")
             from .symmetry import SymmetryAwareBottleneck
             self.mamba = SymmetryAwareBottleneck(in_channels=in_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.mamba(x)
+        result = self.mamba(x)
+        if isinstance(result, tuple):
+            return result[0]
+        return result
