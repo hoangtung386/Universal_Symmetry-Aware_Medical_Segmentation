@@ -5,3 +5,11 @@ USE_HU_WINDOW: true
 
 DICE_WEIGHT: 0.7
 CE_WEIGHT: 0.3
+
+# Stroke-specific: disable FP penalty (hurts Core recall), oversample Core slices
+FP_PENALTY_WEIGHT: 0.0
+SKIP_EMPTY_SLICES: true
+NEGATIVE_SAMPLE_RATIO: 0.02
+
+# Aggressive class weights: Core=200, Penumbra=8, Background=0.05
+CUSTOM_CLASS_WEIGHTS: [0.05, 200.0, 8.0]
