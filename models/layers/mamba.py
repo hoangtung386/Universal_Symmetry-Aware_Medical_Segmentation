@@ -65,7 +65,7 @@ class MambaBottleneck(nn.Module):
             x: (B, C, D, H, W)
         Returns:
             output: (B, C, D, H, W)
-            asymmetry_map: (B, 1, D, H, W)
+            asymmetry_map: (B, 1, D, H, W/2) — per-hemisphere asymmetry
         """
         B, C, D, H, W = x.shape
         
@@ -131,14 +131,10 @@ class SymmetryGate(nn.Module):
         Args:
             left_feat: (B, C, D, H, W/2)
             right_feat: (B, C, D, H, W/2)
-            asymmetry_map: (B, 1, D, H, W)
+            asymmetry_map: (B, 1, D, H, W/2) — half-width, aligned with left_feat
         """
-        # Resize asymmetry map
-        asym_left = asymmetry_map[..., :asymmetry_map.size(-1)//2]
-        asym_right = asymmetry_map[..., asymmetry_map.size(-1)//2:]
-        
         # Concatenate features
-        combined = torch.cat([left_feat, right_feat, asym_left], dim=1)
+        combined = torch.cat([left_feat, right_feat, asymmetry_map], dim=1)
         
         # Compute gates
         gates = self.gate(combined)  # (B, 2, D, H, W/2)
@@ -205,85 +201,6 @@ class SimplifiedSSM(nn.Module):
         output = self.out_proj(output)
         
         return output
-
-
-# ============================================================================
-# Mamba-Enhanced SymFormer
-# ============================================================================
-
-class MambaSymFormer(nn.Module):
-    """
-    SymFormer with Mamba-2 bottleneck
-    
-    Changes:
-    1. Replace SymmetryAwareBottleneck with MambaBottleneck
-    2. Keep rest of architecture unchanged
-    """
-    
-    def __init__(self, in_channels=1, num_classes=2, T=1, input_size=(512, 512)):
-        super().__init__()
-        
-        self.T = T
-        
-        from models.components import EncoderBlock3D, AlignmentNetwork
-        
-        self.alignment_net = AlignmentNetwork(input_size)
-        
-        # Encoder (unchanged)
-        self.enc1 = EncoderBlock3D(1, 64)
-        self.enc2 = EncoderBlock3D(64, 128)
-        self.enc3 = EncoderBlock3D(128, 256)
-        self.enc4 = EncoderBlock3D(256, 512)
-        
-        # Bottleneck preprocessing
-        self.bottleneck_conv = nn.Sequential(
-            nn.Conv3d(512, 1024, 3, padding=1),
-            nn.GroupNorm(32, 1024),
-            nn.ReLU(inplace=True)
-        )
-        
-        # ⭐ NEW: Mamba-2 Bottleneck
-        self.bottleneck = MambaBottleneck(
-            channels=1024,
-            depth=4,  # Number of Mamba layers
-            d_state=128,  # State dimension
-            d_conv=4,  # Conv kernel size in Mamba
-            expand=2  # Expansion factor
-        )
-        
-        # Decoder (unchanged)
-        from models.symformer import HVTDecoder
-        self.decoder = HVTDecoder(num_classes=num_classes)
-        
-    def forward(self, x, return_alignment=False):
-        """Standard forward pass"""
-        # Alignment
-        B, num_slices, H, W = x.shape
-        x_flat = x.view(B * num_slices, 1, H, W)
-        params = self.alignment_net(x_flat)
-        params = torch.tanh(params) * 0.2
-        aligned_flat, _ = self.alignment_net.apply_transform(x_flat, params)
-        x_aligned = aligned_flat.view(B, num_slices, H, W).unsqueeze(1)
-        
-        # Encoding
-        s1, x = self.enc1(x_aligned)
-        s2, x = self.enc2(x)
-        s3, x = self.enc3(x)
-        s4, x = self.enc4(x)
-        
-        # Bottleneck with Mamba
-        x = self.bottleneck_conv(x)
-        x, asymmetry_map = self.bottleneck(x)  # ⭐ Mamba magic here
-        
-        # Decoder
-        output, cluster_outputs = self.decoder(x, [s1, s2, s3, s4])
-        
-        if return_alignment:
-            aligned_slices = [aligned_flat[i::num_slices] for i in range(num_slices)]
-            alignment_params = [params.view(B, num_slices, 3)[:, i] for i in range(num_slices)]
-            return output, aligned_slices, alignment_params, cluster_outputs, asymmetry_map
-        
-        return output, cluster_outputs, asymmetry_map
 
 
 # ============================================================================
