@@ -41,7 +41,7 @@ class SymFormerTrainer:
         self.criterion = StrokeLoss(
             num_classes=config.NUM_CLASSES,
             class_weights=class_weights,
-            tversky_alpha=0.7, tversky_beta=0.3,
+            tversky_alpha=0.3, tversky_beta=0.7,
             tversky_weight=0.5, ce_weight=0.3, focal_weight=0.1,
             contrastive_weight=0.3, boundary_weight=0.05,
             multiscale_weight=0.05,
@@ -95,10 +95,9 @@ class SymFormerTrainer:
 
             outputs = self.model(images, metadata_dict=metadata)
             output = outputs['pred']
+            multiscale = outputs.get('multiscale_preds', None)
 
-            # ConditionedSymFormer always inverse-transforms prediction to original space,
-            # so we compare directly with original masks.
-            loss, loss_dict = self.criterion(output, masks, None, None)
+            loss, loss_dict = self.criterion(output, masks, multiscale, None)
 
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(
