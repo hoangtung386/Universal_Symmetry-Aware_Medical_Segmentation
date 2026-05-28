@@ -5,7 +5,7 @@ from monai.losses import FocalLoss
 
 
 class TverskyLoss(nn.Module):
-    def __init__(self, alpha=0.7, beta=0.3, smooth=1e-6, include_background=False):
+    def __init__(self, alpha=0.3, beta=0.7, smooth=1e-6, include_background=False):
         super().__init__()
         self.alpha = alpha
         self.beta = beta
@@ -75,7 +75,7 @@ class BoundaryLoss(nn.Module):
 
 class StrokeLoss(nn.Module):
     def __init__(self, num_classes=3, class_weights=None,
-                 tversky_alpha=0.7, tversky_beta=0.3,
+                 tversky_alpha=0.3, tversky_beta=0.7,
                  tversky_weight=0.5, ce_weight=0.3, focal_weight=0.1,
                  contrastive_weight=0.3, boundary_weight=0.05,
                  multiscale_weight=0.05):
@@ -100,35 +100,37 @@ class StrokeLoss(nn.Module):
         if target.ndim == 4:
             target = target.squeeze(1)
 
+        tv = self.tversky(output, target)
+        ce = self.ce(output, target.long())
+        foc = self.focal(output, target.unsqueeze(1))
+        cont = self.contrastive(output, target)
+        bnd = self.boundary(output, target)
+
         main_loss = (
-            self.tversky_weight * self.tversky(output, target) +
-            self.ce_weight * self.ce(output, target.long()) +
-            self.focal_weight * self.focal(output, target.unsqueeze(1))
+            self.tversky_weight * tv +
+            self.ce_weight * ce +
+            self.focal_weight * foc +
+            self.contrastive_weight * cont +
+            self.boundary_weight * bnd
         )
 
         loss_dict = {
-            'tversky': self.tversky(output, target).detach().item(),
-            'ce': self.ce(output, target.long()).detach().item(),
-            'focal': self.focal(output, target.unsqueeze(1)).detach().item(),
+            'tversky': tv.item(),
+            'ce': ce.item(),
+            'focal': foc.item(),
+            'contrastive': (self.contrastive_weight * cont).item(),
+            'boundary': (self.boundary_weight * bnd).item(),
         }
-
-        contrastive_loss = self.contrastive_weight * self.contrastive(output, target)
-        main_loss = main_loss + contrastive_loss
-        loss_dict['contrastive'] = contrastive_loss.detach().item()
-
-        boundary_loss = self.boundary_weight * self.boundary(output, target)
-        main_loss = main_loss + boundary_loss
-        loss_dict['boundary'] = boundary_loss.detach().item()
 
         total_loss = main_loss
 
         if cluster_outputs:
-            multiscale_loss = self._compute_multiscale_loss(cluster_outputs, target)
-            total_loss = total_loss + self.multiscale_weight * multiscale_loss
-            loss_dict['multiscale'] = multiscale_loss.detach().item()
+            ms = self._compute_multiscale_loss(cluster_outputs, target)
+            total_loss = total_loss + self.multiscale_weight * ms
+            loss_dict['multiscale'] = ms.item()
 
-        loss_dict['total'] = total_loss.detach().item()
-        loss_dict['main'] = main_loss.detach().item()
+        loss_dict['total'] = total_loss.item()
+        loss_dict['main'] = main_loss.item()
         return total_loss, loss_dict
 
     def _compute_multiscale_loss(self, cluster_outputs, target):
@@ -160,7 +162,7 @@ def create_ablation_losses(num_classes=2, class_weights=None):
     from copy import deepcopy
     base = {
         'num_classes': num_classes, 'class_weights': class_weights,
-        'tversky_alpha': 0.7, 'tversky_beta': 0.3,
+        'tversky_alpha': 0.3, 'tversky_beta': 0.7,
     }
     configs = {
         'baseline': {**base, 'tversky_weight': 1.0, 'ce_weight': 0.0, 'focal_weight': 0.0,
