@@ -29,22 +29,18 @@ class CPAISDDataset(BaseDataset):
         
         # Build sample index
         self.samples, self.filter_stats = self._build_index()
-        
+
         print(f"\n{split.upper()} Dataset (CPAISD):")
         print(f"  Root: {self.dataset_root}")
-        if self.skip_empty_slices:
-            print(f"  Empty slice filtering: ENABLED")
-            print(f"  Final dataset size: {len(self.samples)}")
-        else:
-            print(f"  Total slices: {len(self.samples)}")
+        print(f"  Final dataset size: {len(self.samples)}")
     
     def _build_index(self):
         import random
         random.seed(42)
-        
+
         samples = []
         filter_stats = {'total': 0, 'empty': 0, 'non_empty': 0, 'dropped_empty': 0}
-        
+
         split_path = Path(self.dataset_root) / self.split
         if not split_path.exists():
             return [], filter_stats
@@ -52,42 +48,52 @@ class CPAISDDataset(BaseDataset):
         for study_dir in sorted(split_path.iterdir()):
             if not study_dir.is_dir():
                 continue
-            
+
             slice_dirs = sorted([d for d in study_dir.iterdir() if d.is_dir()])
             num_slices = len(slice_dirs)
-            
+
             for idx, slice_dir in enumerate(slice_dirs):
                 if not (slice_dir / "image.npz").exists() or not (slice_dir / "mask.npz").exists():
                     continue
-                
+
                 filter_stats['total'] += 1
-                
-                if self.skip_empty_slices:
-                    mask_file = slice_dir / "mask.npz"
-                    try:
-                        mask_data = np.load(mask_file)
-                        mask_key = list(mask_data.keys())[0]
-                        mask = mask_data[mask_key]
-                        is_empty = (mask.sum() == 0)
-                        
-                        if is_empty:
-                            filter_stats['empty'] += 1
-                            if random.random() > self.negative_sample_ratio:
-                                filter_stats['dropped_empty'] += 1
-                                continue
-                        else:
-                            filter_stats['non_empty'] += 1
-                    except Exception as e:
-                        pass
-                
-                samples.append({
+
+                try:
+                    mask_data = np.load(slice_dir / "mask.npz")
+                    mask_key = list(mask_data.keys())[0]
+                    mask = mask_data[mask_key]
+                except Exception:
+                    continue
+
+                has_core = np.any(mask == 1)
+                has_penumbra = np.any(mask == 2)
+                is_bg_only = not has_core and not has_penumbra
+
+                sample = {
                     'study': study_dir.name,
                     'slice_idx': idx,
                     'slice_path': slice_dir,
                     'all_slices': slice_dirs,
-                    'num_slices': num_slices
-                })
-        
+                    'num_slices': num_slices,
+                }
+
+                if is_bg_only:
+                    filter_stats['empty'] += 1
+                    if random.random() < self.negative_sample_ratio:
+                        samples.append(sample)
+                    else:
+                        filter_stats['dropped_empty'] += 1
+                else:
+                    filter_stats['non_empty'] += 1
+                    samples.append(sample)
+                    if has_core:
+                        for _ in range(3):
+                            samples.append(sample)
+
+        random.shuffle(samples)
+        print(f"  Core-oversampled dataset: {len(samples)} samples "
+              f"(non-empty: {filter_stats['non_empty']}, "
+              f"bg kept: {filter_stats['total'] - filter_stats['dropped_empty'] - filter_stats['non_empty']})")
         return samples, filter_stats
 
     def _load_slice(self, slice_path, use_raw_dicom=False):
