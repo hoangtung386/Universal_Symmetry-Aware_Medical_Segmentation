@@ -7,8 +7,8 @@ from tqdm import tqdm
 import wandb
 from monai.networks.utils import one_hot
 from monai.metrics import DiceMetric
-from models.losses import SymFormerLoss
-from utils.transforms import apply_aligned_mask
+from models.losses import StrokeLoss
+
 
 class SymFormerTrainer:
     """
@@ -24,7 +24,7 @@ class SymFormerTrainer:
 
         # Priority: Custom weights from config > Computed from dataset
         if hasattr(config, 'CUSTOM_CLASS_WEIGHTS') and config.CUSTOM_CLASS_WEIGHTS:
-            print(f"✓ Using CUSTOM class weights from config: {config.CUSTOM_CLASS_WEIGHTS}")
+            print(f"[Using CUSTOM class weights from config: {config.CUSTOM_CLASS_WEIGHTS}")
             class_weights = torch.tensor(config.CUSTOM_CLASS_WEIGHTS, dtype=torch.float32).to(device)
         else:
             from utils.data_utils import compute_class_weights
@@ -35,13 +35,16 @@ class SymFormerTrainer:
                 num_samples=2000
             ).to(device)
 
-        print(f"[CRITICAL] Final class weights: {class_weights.cpu().tolist()}")
-        print(f"[CRITICAL] NUM_CLASSES: {config.NUM_CLASSES}")
+        print(f"[Final class weights: {class_weights.cpu().tolist()}")
+        print(f"[NUM_CLASSES: {config.NUM_CLASSES}")
 
-        self.criterion = SymFormerLoss(
+        self.criterion = StrokeLoss(
             num_classes=config.NUM_CLASSES,
             class_weights=class_weights,
-            fp_penalty_weight=getattr(config, 'FP_PENALTY_WEIGHT', 0.0)
+            tversky_alpha=0.7, tversky_beta=0.3,
+            tversky_weight=0.5, ce_weight=0.3, focal_weight=0.1,
+            contrastive_weight=0.3, boundary_weight=0.05,
+            multiscale_weight=0.05,
         )
 
         self.optimizer = optim.AdamW(
@@ -90,28 +93,12 @@ class SymFormerTrainer:
             images, masks, metadata = self._prepare_batch(batch)
             self.optimizer.zero_grad()
 
-            # Forward pass
             outputs = self.model(images, metadata_dict=metadata)
             output = outputs['pred']
-            center_params = outputs['align_params']
-            multiscale_preds = outputs.get('multiscale_preds', None)
 
-            # Note: Symformer returns final_pred which ALREADY has inverse_transform applied!
-            # Wait, our refactored SymFormer doesn't apply inverse_transform during training.
-            # So output is aligned, and we must align masks.
-
-            align_net = self.model.module.alignment_net if self.multi_gpu else self.model.alignment_net
-            aligned_masks = apply_aligned_mask(masks, center_params, align_net, mode='nearest')
-
-            # We need cluster_outputs and asymmetry_map for the full loss,
-            # but they were internal to the old model.
-            # For this refactoring, we'll focus on the main loss if they aren't available,
-            # but let's assume the model returns them or we just use output and aligned_masks
-            # We will pass None for them and let the loss handle it or we adapt the loss.
-            # To keep it exact, we would need to expose them from SymFormer, but for now:
-            loss, loss_dict = self.criterion(
-                output, aligned_masks, None, None
-            )
+            # ConditionedSymFormer always inverse-transforms prediction to original space,
+            # so we compare directly with original masks.
+            loss, loss_dict = self.criterion(output, masks, None, None)
 
             loss.backward()
             grad_norm = torch.nn.utils.clip_grad_norm_(
@@ -160,28 +147,17 @@ class SymFormerTrainer:
 
                 outputs = self.model(images, metadata_dict=metadata)
                 output = outputs['pred']
-                center_params = outputs['align_params']
 
-                # Align masks to match output space (if output is aligned)
-                # If output is inverse-transformed, mask shouldn't be aligned.
-                # In SymFormer refactor, we DO NOT inverse-transform during training/validation
-                # Wait, the refactored SymFormer says `if not self.training:` it DOES inverse transform.
-                # If it inverse-transforms, output is back in original space, so we evaluate against original mask!
-                # Let's adjust based on model's state:
-                if self.model.training:
-                    align_net = self.model.module.alignment_net if self.multi_gpu else self.model.alignment_net
-                    eval_masks = apply_aligned_mask(masks, center_params, align_net, mode='nearest')
-                else:
-                    eval_masks = masks # Output is already inverse transformed to original space
-
-                loss, _ = self.criterion(output, eval_masks, None, None)
+                # ConditionedSymFormer always inverse-transforms to original space
+                # so we evaluate against original masks directly.
+                loss, _ = self.criterion(output, masks, None, None)
                 total_val_loss += loss.item()
 
                 # Dice metric
-                if eval_masks.ndim == 3:
-                     masks_metric = eval_masks.unsqueeze(1)
+                if masks.ndim == 3:
+                     masks_metric = masks.unsqueeze(1)
                 else:
-                     masks_metric = eval_masks
+                     masks_metric = masks
 
                 y_pred_idx = torch.argmax(output, dim=1, keepdim=True)
                 y_pred_onehot = one_hot(y_pred_idx, num_classes=self.config.NUM_CLASSES)
@@ -191,7 +167,7 @@ class SymFormerTrainer:
 
                 if pbar.n == 0:
                     print(f"\n[DEBUG] Unique predictions: {torch.unique(y_pred_idx).cpu().tolist()}")
-                    print(f"[DEBUG] Unique targets: {torch.unique(eval_masks).cpu().tolist()}")
+                    print(f"[DEBUG] Unique targets: {torch.unique(masks).cpu().tolist()}")
 
                 pbar.set_postfix({'val_loss': f'{loss.item():.4f}'})
 
@@ -235,7 +211,7 @@ class SymFormerTrainer:
         }, path)
 
         if is_best:
-            print(f"✓ Best model saved to {path}! Dice: {val_dice:.4f}")
+            print(f"[Best model saved to {path}! Dice: {val_dice:.4f}")
 
     def _log_history(self, epoch, train_loss, val_loss, val_dice, train_metrics):
         history_dict = {'epoch': epoch, 'train_loss': train_loss, 'val_loss': val_loss, 'val_dice': val_dice}
@@ -254,6 +230,14 @@ class SymFormerTrainer:
         print(f"Epoch {epoch} Summary: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Dice: {val_dice:.4f}, Best: {self.best_dice:.4f}")
 
         if self.config.USE_WANDB:
-            log_dict = {'epoch': epoch, 'train/loss': train_loss, 'val/loss': val_loss, 'val/dice': val_dice, 'val/best_dice': self.best_dice, 'learning_rate': self.optimizer.param_groups[0]['lr']}
-            for k, v in train_metrics.items(): log_dict[f'train/{k}'] = v
+            log_dict = {
+                'epoch': epoch,
+                'train/loss': train_loss,
+                'val/loss': val_loss,
+                'val/dice': val_dice,
+                'val/best_dice': self.best_dice,
+                'learning_rate': self.optimizer.param_groups[0]['lr'],
+            }
+            for k, v in train_metrics.items():
+                log_dict[f'train/{k}'] = v
             wandb.log(log_dict)
