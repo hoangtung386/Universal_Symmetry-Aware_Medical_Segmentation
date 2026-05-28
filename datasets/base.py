@@ -75,44 +75,6 @@ class BaseDataset(Dataset):
         
     def __getitem__(self, idx):
         """
-        Base getitem. Uses samples built in _build_index.
-        Child classes can override or use this common implementation
-        if their samples structure matches (center_idx, all_slices, num_slices).
+        Base getitem. Child classes must override this.
         """
-        if not hasattr(self, 'samples'):
-            raise NotImplementedError("Dataset must have 'samples' attribute initialized")
-
-        sample = self.samples[idx]
-
-        # Check if sample has the required keys for this generic implementation
-        if 'slice_idx' in sample and 'all_slices' in sample and 'num_slices' in sample:
-            center_idx = sample['slice_idx']
-            all_slices = sample['all_slices']
-            num_slices = sample['num_slices']
-
-            images = []
-            for offset in range(-self.T, self.T + 1):
-                slice_idx = center_idx + offset
-                # Clamp to valid range
-                slice_idx = max(0, min(num_slices - 1, slice_idx))
-
-                image, _ = self._load_slice(all_slices[slice_idx])
-                images.append(image)
-
-            center_slice_path = all_slices[center_idx]
-            _, mask = self._load_slice(center_slice_path)
-
-            # Use metadata if available/applicable (often needed for conditioning)
-            metadata = self._load_metadata(center_slice_path)
-
-            images = np.stack(images, axis=0)
-            images = torch.from_numpy(images).float()
-            mask = torch.from_numpy(mask).long()
-
-            if self.transform:
-                # Apply transforms here if implemented
-                pass
-
-            return images, mask, metadata
-        else:
-             raise NotImplementedError("Child classes must implement __getitem__ if sample structure differs")
+        raise NotImplementedError("Child classes must implement __getitem__")
