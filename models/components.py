@@ -47,23 +47,40 @@ class AlignmentNetwork(nn.Module):
         Args:
             x: (B, 1, H, W)
         Returns:
+            aligned_x: (B, 1, H, W) - transformed image
             params: (B, 3) - [angle, shift_x, shift_y]
         """
+        # Save original for transformation
+        input_x = x
+
         x = F.relu(self.bn1(self.conv1(x)))
         x = self.pool1(x)
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.pool2(x)
-        
-        # Adaptive pooling để đảm bảo kích thước
+
         x = self.adaptive_pool(x)
-        
+
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
-        params = self.fc2(x)
-        
-        # Return raw params - range control moved to LCNN
-        return params
+        raw_params = self.fc2(x)
+
+        # Clamp params to prevent extreme transformations
+        params = torch.tanh(raw_params) * torch.tensor(
+            [0.1, 0.05, 0.05], device=raw_params.device, dtype=raw_params.dtype
+        )
+
+        # Apply transformation to original input
+        aligned_x, _ = self.apply_transform(input_x, params)
+        return aligned_x, params
+
+    def inverse_transform(self, x, params):
+        """
+        Approximate inverse of the alignment transform.
+        Negates params to reverse the transformation.
+        """
+        inv_params = torch.stack([-params[:, 0], -params[:, 1], -params[:, 2]], dim=1)
+        return self.apply_transform(x, inv_params, mode='bilinear')
     
     def get_transform_matrix(self, params, size):
         """Create affine transformation matrix from params"""
@@ -262,25 +279,3 @@ class EncoderBlock3D(nn.Module):
         return x, x_pooled
 
 
-class DecoderBlock(nn.Module):
-    """2D Decoder Block"""
-    
-    def __init__(self, in_channels, out_channels):
-        super(DecoderBlock, self).__init__()
-        
-        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, 
-                                        kernel_size=2, stride=2)
-        self.conv1 = nn.Conv2d(out_channels * 2, out_channels, 
-                              kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, 
-                              kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-    
-    def forward(self, x, skip):
-        x = self.upconv(x)
-        x = torch.cat([x, skip], dim=1)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        return x
-        
